@@ -1,259 +1,104 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fiesta Reroll - Disponibilités</title>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --card: #111827;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #f59e0b;
-      --accent-2: #38bdf8;
-      --border: #334155;
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const port = process.env.PORT || 3000;
+const rootDir = __dirname;
+const dataDir = path.join(rootDir, 'data');
+const txtFile = path.join(dataDir, 'responses.txt');
+const csvFile = path.join(dataDir, 'responses.csv');
+
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+if (!fs.existsSync(txtFile)) {
+  fs.writeFileSync(txtFile, '', 'utf8');
+}
+
+if (!fs.existsSync(csvFile)) {
+  fs.writeFileSync(csvFile, 'pseudo,location,weekends,createdAt\n', 'utf8');
+}
+
+function serveFile(filePath, contentType, res) {
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
     }
 
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
-      background: linear-gradient(135deg, var(--bg), #1e293b);
-      color: var(--text);
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  });
+}
 
-    .card {
-      width: min(100%, 760px);
-      background: rgba(17, 24, 39, 0.95);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 28px;
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.35);
-    }
+const server = http.createServer((req, res) => {
+  if (req.method === 'POST' && req.url === '/submit') {
+    let body = '';
 
-    h1 {
-      margin-top: 0;
-      font-size: 1.8rem;
-      margin-bottom: 8px;
-    }
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
 
-    p { color: var(--muted); line-height: 1.5; }
-
-    form { display: grid; gap: 14px; margin-top: 20px; }
-    .row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
-    label { display: flex; flex-direction: column; gap: 8px; font-weight: 600; }
-    input, button {
-      padding: 12px 14px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      font-size: 1rem;
-      background: #0b1220;
-      color: var(--text);
-    }
-
-    input:focus {
-      outline: 2px solid rgba(56, 189, 248, 0.35);
-      border-color: var(--accent-2);
-    }
-
-    button {
-      cursor: pointer;
-      background: linear-gradient(90deg, var(--accent), #fb923c);
-      border: none;
-      font-weight: 700;
-      transition: transform 0.2s ease;
-    }
-
-    button:hover { transform: translateY(-1px); }
-
-    .message {
-      margin-top: 16px;
-      padding: 12px 14px;
-      border-radius: 10px;
-      background: rgba(56, 189, 248, 0.1);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      color: #dbeafe;
-      display: none;
-    }
-
-    .list {
-      margin-top: 24px;
-      display: grid;
-      gap: 10px;
-    }
-
-    .item {
-      padding: 12px 14px;
-      background: #0b1220;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .item strong { color: #fbbf24; }
-
-    .hint {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.95rem;
-      line-height: 1.5;
-    }
-
-    .checkbox-group {
-      display: grid;
-      gap: 10px;
-      padding: 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: #0b1220;
-    }
-
-    .checkbox-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 500;
-    }
-
-    .checkbox-item input {
-      width: 18px;
-      height: 18px;
-      padding: 0;
-      accent-color: var(--accent-2);
-    }
-
-    @media (max-width: 640px) {
-      .row { grid-template-columns: 1fr; }
-      .card { padding: 20px; }
-    }
-  </style>
-</head>
-<body>
-  <main class="card">
-    <h1>Choisis tes disponibilités</h1>
-    <p>Remplis simplement ton pseudo, ta localisation approximative et les dates pendant lesquelles tu es disponible.</p>
-
-    <form id="availabilityForm">
-      <label>
-        Pseudo
-        <input type="text" id="pseudo" placeholder="Ex. FiestaPlayer" required />
-      </label>
-
-      <label>
-        Localisation approximative
-        <input type="text" id="location" placeholder="Ex. Paris / Lyon / Nord" required />
-      </label>
-
-      <p class="hint">Les disponibilités proposées sont les week-ends de septembre et d’octobre, à l’exception du weekend du 11-13 septembre.</p>
-
-      <label>
-        Week-ends disponibles
-        <div class="checkbox-group">
-          <label class="checkbox-item"><input type="checkbox" value="6-8 septembre"> 6-8 septembre</label>
-          <label class="checkbox-item"><input type="checkbox" value="20-22 septembre"> 20-22 septembre</label>
-          <label class="checkbox-item"><input type="checkbox" value="27-29 septembre"> 27-29 septembre</label>
-          <label class="checkbox-item"><input type="checkbox" value="4-6 octobre"> 4-6 octobre</label>
-          <label class="checkbox-item"><input type="checkbox" value="11-13 octobre"> 11-13 octobre</label>
-          <label class="checkbox-item"><input type="checkbox" value="18-20 octobre"> 18-20 octobre</label>
-          <label class="checkbox-item"><input type="checkbox" value="25-27 octobre"> 25-27 octobre</label>
-        </div>
-      </label>
-
-      <button type="submit">Enregistrer ma disponibilité</button>
-    </form>
-
-    <div id="message" class="message"></div>
-
-    <section id="entries" class="list"></section>
-  </main>
-
-  <script>
-    const form = document.getElementById('availabilityForm');
-    const message = document.getElementById('message');
-    const entriesContainer = document.getElementById('entries');
-
-    function loadEntries() {
-      const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
-      entriesContainer.innerHTML = '';
-
-      if (!saved.length) {
-        entriesContainer.innerHTML = '<p>Aucune disponibilité enregistrée pour le moment.</p>';
-        return;
-      }
-
-      saved.forEach((entry) => {
-        const item = document.createElement('div');
-        item.className = 'item';
-        item.innerHTML = `
-          <div>
-            <strong>${entry.pseudo}</strong><br />
-            ${entry.location}<br />
-            <small>${entry.weekends.join(', ')}</small>
-          </div>
-          <span>${entry.createdAt}</span>
-        `;
-        entriesContainer.appendChild(item);
-      });
-    }
-
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      const pseudo = document.getElementById('pseudo').value.trim();
-      const location = document.getElementById('location').value.trim();
-      const selectedWeekends = Array.from(document.querySelectorAll('.checkbox-group input[type="checkbox"]'))
-        .filter((checkbox) => checkbox.checked)
-        .map((checkbox) => checkbox.value);
-
-      if (!selectedWeekends.length) {
-        message.textContent = 'Veuillez choisir au moins un weekend disponible.';
-        message.style.display = 'block';
-        return;
-      }
-
-      const entry = {
-        pseudo,
-        location,
-        weekends: selectedWeekends,
-        createdAt: new Date().toLocaleString('fr-FR')
-      };
-
+    req.on('end', () => {
       try {
-        const response = await fetch('/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(entry)
-        });
+        const data = JSON.parse(body);
+        const pseudo = String(data.pseudo || '').trim();
+        const location = String(data.location || '').trim();
+        const weekends = Array.isArray(data.weekends) ? data.weekends : [];
+        const createdAt = data.createdAt || new Date().toLocaleString('fr-FR');
 
-        const result = await response.json();
-
-        if (!result.ok) {
-          throw new Error(result.error || 'Erreur inconnue');
+        if (!pseudo || !location || !weekends.length) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: false, error: 'Données incomplètes' }));
+          return;
         }
 
-        const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
-        saved.unshift(entry);
-        localStorage.setItem('availabilityEntries', JSON.stringify(saved));
+        const entryLine = `[${createdAt}] ${pseudo} | ${location} | ${weekends.join(', ')}\n`;
+        fs.appendFileSync(txtFile, entryLine, 'utf8');
 
-        form.reset();
-        message.textContent = `Merci ${pseudo} ! Ta disponibilité a bien été enregistrée.`;
-        message.style.display = 'block';
-        loadEntries();
+        const csvLine = `${escapeCsv(pseudo)},${escapeCsv(location)},${escapeCsv(weekends.join(', '))},${escapeCsv(createdAt)}\n`;
+        fs.appendFileSync(csvFile, csvLine, 'utf8');
+
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true }));
       } catch (error) {
-        message.textContent = 'La sauvegarde a échoué : ' + error.message;
-        message.style.display = 'block';
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'JSON invalide' }));
       }
     });
 
-    loadEntries();
-  </script>
-</body>
-</html>
+    return;
+  }
+
+  if (req.url === '/responses.txt') {
+    serveFile(txtFile, 'text/plain; charset=utf-8', res);
+    return;
+  }
+
+  if (req.url === '/responses.csv') {
+    serveFile(csvFile, 'text/csv; charset=utf-8', res);
+    return;
+  }
+
+  if (req.url === '/') {
+    serveFile(path.join(rootDir, 'index.html'), 'text/html; charset=utf-8', res);
+    return;
+  }
+
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('Not found');
+});
+
+function escapeCsv(value) {
+  const stringValue = String(value ?? '');
+  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
+}
+
+server.listen(port, () => {
+  console.log(`Serveur lancé sur http://localhost:${port}`);
+});
