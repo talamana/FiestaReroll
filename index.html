@@ -204,7 +204,7 @@
       });
     }
 
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', async (event) => {
       event.preventDefault();
 
       const pseudo = document.getElementById('pseudo').value.trim();
@@ -226,14 +226,31 @@
         createdAt: new Date().toLocaleString('fr-FR')
       };
 
-      const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
-      saved.unshift(entry);
-      localStorage.setItem('availabilityEntries', JSON.stringify(saved));
+      try {
+        const response = await fetch('/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(entry)
+        });
 
-      form.reset();
-      message.textContent = `Merci ${pseudo} ! Ta disponibilité a bien été enregistrée.`;
-      message.style.display = 'block';
-      loadEntries();
+        const result = await response.json();
+
+        if (!result.ok) {
+          throw new Error(result.error || 'Erreur inconnue');
+        }
+
+        const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
+        saved.unshift(entry);
+        localStorage.setItem('availabilityEntries', JSON.stringify(saved));
+
+        form.reset();
+        message.textContent = `Merci ${pseudo} ! Ta disponibilité a bien été enregistrée.`;
+        message.style.display = 'block';
+        loadEntries();
+      } catch (error) {
+        message.textContent = 'La sauvegarde a échoué : ' + error.message;
+        message.style.display = 'block';
+      }
     });
 
     loadEntries();
