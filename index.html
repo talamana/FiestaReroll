@@ -45,7 +45,6 @@
     p { color: var(--muted); line-height: 1.5; }
 
     form { display: grid; gap: 14px; margin-top: 20px; }
-    .row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
     label { display: flex; flex-direction: column; gap: 8px; font-weight: 600; }
     input, button {
       padding: 12px 14px;
@@ -81,24 +80,18 @@
       display: none;
     }
 
-    .list {
-      margin-top: 24px;
-      display: grid;
-      gap: 10px;
-    }
-
-    .item {
+    .csv-box {
+      margin-top: 16px;
       padding: 12px 14px;
+      border-radius: 10px;
       background: #0b1220;
       border: 1px solid var(--border);
-      border-radius: 10px;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: center;
+      white-space: pre-wrap;
+      font-family: Consolas, monospace;
+      font-size: 0.95rem;
+      color: #e2e8f0;
+      overflow-x: auto;
     }
-
-    .item strong { color: #fbbf24; }
 
     .hint {
       margin: 0;
@@ -131,7 +124,6 @@
     }
 
     @media (max-width: 640px) {
-      .row { grid-template-columns: 1fr; }
       .card { padding: 20px; }
     }
   </style>
@@ -139,7 +131,7 @@
 <body>
   <main class="card">
     <h1>Choisis tes disponibilités</h1>
-    <p>Remplis simplement ton pseudo, ta localisation approximative et les dates pendant lesquelles tu es disponible.</p>
+    <p>Remplis ton pseudo, ta localisation approximative et les dates pendant lesquelles tu es disponible.</p>
 
     <form id="availabilityForm">
       <label>
@@ -172,39 +164,90 @@
 
     <div id="message" class="message"></div>
 
-    <section id="entries" class="list"></section>
+    <section class="list">
+      <div id="csvPreview" class="csv-box">Chargement…</div>
+    </section>
   </main>
 
   <script>
     const form = document.getElementById('availabilityForm');
     const message = document.getElementById('message');
-    const entriesContainer = document.getElementById('entries');
+    const csvPreview = document.getElementById('csvPreview');
+    const storageKey = 'fiesta-reroll-entries';
+    let entries = [];
+
+    function escapeCsv(value) {
+      const stringValue = String(value ?? '');
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    }
+
+    function buildCsvText(items) {
+      const lines = ['pseudo,localisation,weekends,createdAt'];
+      items.forEach((item) => {
+        const weekendText = item.weekends.join(' | ');
+        lines.push([
+          escapeCsv(item.pseudo),
+          escapeCsv(item.location),
+          escapeCsv(weekendText),
+          escapeCsv(item.createdAt)
+        ].join(','));
+      });
+      return lines.join('\n');
+    }
+
+    function renderPreview() {
+      csvPreview.textContent = buildCsvText(entries);
+    }
+
+    function saveEntries() {
+      localStorage.setItem(storageKey, JSON.stringify(entries));
+    }
 
     function loadEntries() {
-      const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
-      entriesContainer.innerHTML = '';
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          entries = JSON.parse(stored);
+        }
+      } catch (error) {
+        entries = [];
+      }
+    }
 
-      if (!saved.length) {
-        entriesContainer.innerHTML = '<p>Aucune disponibilité enregistrée pour le moment.</p>';
+    function downloadCsv() {
+      const blob = new Blob([buildCsvText(entries)], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'dispo.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function initializePreview() {
+      loadEntries();
+      if (entries.length) {
+        renderPreview();
         return;
       }
 
-      saved.forEach((entry) => {
-        const item = document.createElement('div');
-        item.className = 'item';
-        item.innerHTML = `
-          <div>
-            <strong>${entry.pseudo}</strong><br />
-            ${entry.location}<br />
-            <small>${entry.weekends.join(', ')}</small>
-          </div>
-          <span>${entry.createdAt}</span>
-        `;
-        entriesContainer.appendChild(item);
-      });
+      try {
+        const response = await fetch('dispo.csv');
+        if (response.ok) {
+          const text = await response.text();
+          csvPreview.textContent = text.trim() || 'Aucune donnée enregistrée.';
+        } else {
+          renderPreview();
+        }
+      } catch (error) {
+        renderPreview();
+      }
     }
 
-    form.addEventListener('submit', async (event) => {
+    form.addEventListener('submit', (event) => {
       event.preventDefault();
 
       const pseudo = document.getElementById('pseudo').value.trim();
@@ -219,49 +262,18 @@
         return;
       }
 
-      const entry = {
-        pseudo,
-        location,
-        weekends: selectedWeekends,
-        createdAt: new Date().toLocaleString('fr-FR')
-      };
+      const createdAt = new Date().toLocaleString('fr-FR');
+      entries.push({ pseudo, location, weekends: selectedWeekends, createdAt });
+      saveEntries();
+      renderPreview();
+      downloadCsv();
 
-      try {
-        const submitUrl = window.location.protocol === 'file:' ? 'http://localhost:3000/submit' : '/submit';
-        const response = await fetch(submitUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(entry)
-        });
-
-        const text = await response.text();
-        let result;
-
-        try {
-          result = JSON.parse(text);
-        } catch {
-          throw new Error(`Réponse inattendue du serveur : ${text.slice(0, 120)}`);
-        }
-
-        if (!result.ok) {
-          throw new Error(result.error || 'Erreur inconnue');
-        }
-
-        const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
-        saved.unshift(entry);
-        localStorage.setItem('availabilityEntries', JSON.stringify(saved));
-
-        form.reset();
-        message.textContent = `Merci ${pseudo} ! Ta disponibilité a bien été enregistrée.`;
-        message.style.display = 'block';
-        loadEntries();
-      } catch (error) {
-        message.textContent = 'La sauvegarde a échoué : ' + error.message;
-        message.style.display = 'block';
-      }
+      form.reset();
+      message.textContent = `Merci ${pseudo} ! Ta disponibilité a bien été enregistrée dans dispo.csv.`;
+      message.style.display = 'block';
     });
 
-    loadEntries();
+    initializePreview();
   </script>
 </body>
 </html>
