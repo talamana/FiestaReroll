@@ -47,7 +47,7 @@
     form { display: grid; gap: 14px; margin-top: 20px; }
     .row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
     label { display: flex; flex-direction: column; gap: 8px; font-weight: 600; }
-    input, button {
+    input, select, button {
       padding: 12px 14px;
       border-radius: 10px;
       border: 1px solid var(--border);
@@ -56,7 +56,7 @@
       color: var(--text);
     }
 
-    input:focus {
+    input:focus, select:focus {
       outline: 2px solid rgba(56, 189, 248, 0.35);
       border-color: var(--accent-2);
     }
@@ -100,6 +100,13 @@
 
     .item strong { color: #fbbf24; }
 
+    .hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
     @media (max-width: 640px) {
       .row { grid-template-columns: 1fr; }
       .card { padding: 20px; }
@@ -122,16 +129,21 @@
         <input type="text" id="location" placeholder="Ex. Paris / Lyon / Nord" required />
       </label>
 
-      <div class="row">
-        <label>
-          Disponible du
-          <input type="date" id="startDate" required />
-        </label>
-        <label>
-          Au
-          <input type="date" id="endDate" required />
-        </label>
-      </div>
+      <p class="hint">Les disponibilités proposées sont les week-ends de septembre et d’octobre, à l’exception du weekend du 11-13 septembre.</p>
+
+      <label>
+        Weekend disponible
+        <select id="weekendChoice" required>
+          <option value="">Choisir un weekend</option>
+          <option value="6-8 septembre">6-8 septembre</option>
+          <option value="20-22 septembre">20-22 septembre</option>
+          <option value="27-29 septembre">27-29 septembre</option>
+          <option value="4-6 octobre">4-6 octobre</option>
+          <option value="11-13 octobre">11-13 octobre</option>
+          <option value="18-20 octobre">18-20 octobre</option>
+          <option value="25-27 octobre">25-27 octobre</option>
+        </select>
+      </label>
 
       <button type="submit">Enregistrer ma disponibilité</button>
     </form>
@@ -145,16 +157,6 @@
     const form = document.getElementById('availabilityForm');
     const message = document.getElementById('message');
     const entriesContainer = document.getElementById('entries');
-
-    function formatDate(value) {
-      if (!value) return '';
-      const date = new Date(value + 'T00:00:00');
-      return date.toLocaleDateString('fr-FR', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      });
-    }
 
     function loadEntries() {
       const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
@@ -172,7 +174,7 @@
           <div>
             <strong>${entry.pseudo}</strong><br />
             ${entry.location}<br />
-            <small>${entry.startDate} → ${entry.endDate}</small>
+            <small>${entry.weekend}</small>
           </div>
           <span>${entry.createdAt}</span>
         `;
@@ -185,11 +187,10 @@
 
       const pseudo = document.getElementById('pseudo').value.trim();
       const location = document.getElementById('location').value.trim();
-      const startDate = document.getElementById('startDate').value;
-      const endDate = document.getElementById('endDate').value;
+      const weekend = document.getElementById('weekendChoice').value.trim();
 
-      if (startDate > endDate) {
-        message.textContent = 'La date de début doit être avant ou égale à la date de fin.';
+      if (!weekend) {
+        message.textContent = 'Veuillez choisir un weekend disponible.';
         message.style.display = 'block';
         return;
       }
@@ -197,8 +198,7 @@
       const entry = {
         pseudo,
         location,
-        startDate: formatDate(startDate),
-        endDate: formatDate(endDate),
+        weekend,
         createdAt: new Date().toLocaleString('fr-FR')
       };
 
