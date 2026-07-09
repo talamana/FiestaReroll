@@ -1,0 +1,9 @@
+{
+  "name": "fiestareroll",
+  "version": "1.0.0",
+  "description": "Formulaire de disponibilités avec sauvegarde locale et fichier CSV",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
