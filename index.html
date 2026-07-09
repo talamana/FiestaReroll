@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fiesta Reroll - Disponibilités</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #f59e0b;
+      --accent-2: #38bdf8;
+      --border: #334155;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, var(--bg), #1e293b);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: min(100%, 760px);
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+    }
+
+    p { color: var(--muted); line-height: 1.5; }
+
+    form { display: grid; gap: 14px; margin-top: 20px; }
+    .row { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+    label { display: flex; flex-direction: column; gap: 8px; font-weight: 600; }
+    input, button {
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 1rem;
+      background: #0b1220;
+      color: var(--text);
+    }
+
+    input:focus {
+      outline: 2px solid rgba(56, 189, 248, 0.35);
+      border-color: var(--accent-2);
+    }
+
+    button {
+      cursor: pointer;
+      background: linear-gradient(90deg, var(--accent), #fb923c);
+      border: none;
+      font-weight: 700;
+      transition: transform 0.2s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+
+    .message {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #dbeafe;
+      display: none;
+    }
+
+    .list {
+      margin-top: 24px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .item {
+      padding: 12px 14px;
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .item strong { color: #fbbf24; }
+
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
+      .card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Choisis tes disponibilités</h1>
+    <p>Remplis simplement ton pseudo, ta localisation approximative et les dates pendant lesquelles tu es disponible.</p>
+
+    <form id="availabilityForm">
+      <label>
+        Pseudo
+        <input type="text" id="pseudo" placeholder="Ex. FiestaPlayer" required />
+      </label>
+
+      <label>
+        Localisation approximative
+        <input type="text" id="location" placeholder="Ex. Paris / Lyon / Nord" required />
+      </label>
+
+      <div class="row">
+        <label>
+          Disponible du
+          <input type="date" id="startDate" required />
+        </label>
+        <label>
+          Au
+          <input type="date" id="endDate" required />
+        </label>
+      </div>
+
+      <button type="submit">Enregistrer ma disponibilité</button>
+    </form>
+
+    <div id="message" class="message"></div>
+
+    <section id="entries" class="list"></section>
+  </main>
+
+  <script>
+    const form = document.getElementById('availabilityForm');
+    const message = document.getElementById('message');
+    const entriesContainer = document.getElementById('entries');
+
+    function formatDate(value) {
+      if (!value) return '';
+      const date = new Date(value + 'T00:00:00');
+      return date.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    }
+
+    function loadEntries() {
+      const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
+      entriesContainer.innerHTML = '';
+
+      if (!saved.length) {
+        entriesContainer.innerHTML = '<p>Aucune disponibilité enregistrée pour le moment.</p>';
+        return;
+      }
+
+      saved.forEach((entry) => {
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerHTML = `
+          <div>
+            <strong>${entry.pseudo}</strong><br />
+            ${entry.location}<br />
+            <small>${entry.startDate} → ${entry.endDate}</small>
+          </div>
+          <span>${entry.createdAt}</span>
+        `;
+        entriesContainer.appendChild(item);
+      });
+    }
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      const pseudo = document.getElementById('pseudo').value.trim();
+      const location = document.getElementById('location').value.trim();
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+
+      if (startDate > endDate) {
+        message.textContent = 'La date de début doit être avant ou égale à la date de fin.';
+        message.style.display = 'block';
+        return;
+      }
+
+      const entry = {
+        pseudo,
+        location,
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        createdAt: new Date().toLocaleString('fr-FR')
+      };
+
+      const saved = JSON.parse(localStorage.getItem('availabilityEntries') || '[]');
+      saved.unshift(entry);
+      localStorage.setItem('availabilityEntries', JSON.stringify(saved));
+
+      form.reset();
+      message.textContent = `Merci ${pseudo} ! Ta disponibilité a bien été enregistrée.`;
+      message.style.display = 'block';
+      loadEntries();
+    });
+
+    loadEntries();
+  </script>
+</body>
+</html>
