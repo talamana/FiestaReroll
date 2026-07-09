@@ -20,20 +20,42 @@ if (!fs.existsSync(csvFile)) {
   fs.writeFileSync(csvFile, 'pseudo,location,weekends,createdAt\n', 'utf8');
 }
 
+function setCorsHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
 function serveFile(filePath, contentType, res) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
+      setCorsHeaders(res);
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Not found');
       return;
     }
 
+    setCorsHeaders(res);
     res.writeHead(200, { 'Content-Type': contentType });
     res.end(data);
   });
 }
 
+function sendJson(res, statusCode, payload) {
+  setCorsHeaders(res);
+  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(payload));
+}
+
 const server = http.createServer((req, res) => {
+  setCorsHeaders(res);
+
+  if (req.method === 'OPTIONS' && req.url === '/submit') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/submit') {
     let body = '';
 
@@ -50,8 +72,7 @@ const server = http.createServer((req, res) => {
         const createdAt = data.createdAt || new Date().toLocaleString('fr-FR');
 
         if (!pseudo || !location || !weekends.length) {
-          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ ok: false, error: 'Données incomplètes' }));
+          sendJson(res, 400, { ok: false, error: 'Données incomplètes' });
           return;
         }
 
@@ -61,11 +82,9 @@ const server = http.createServer((req, res) => {
         const csvLine = `${escapeCsv(pseudo)},${escapeCsv(location)},${escapeCsv(weekends.join(', '))},${escapeCsv(createdAt)}\n`;
         fs.appendFileSync(csvFile, csvLine, 'utf8');
 
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ ok: true }));
+        sendJson(res, 200, { ok: true });
       } catch (error) {
-        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ ok: false, error: 'JSON invalide' }));
+        sendJson(res, 400, { ok: false, error: 'JSON invalide' });
       }
     });
 
